@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo da Velha</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: #1e40af;
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .cell {
+            width: 100px;
+            height: 100px;
+            background-color: #e2e8f0;
+            border-radius: 0.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 3rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.2s;
+            color: #1a202c;
+        }
+        .cell:hover {
+            background-color: #cbd5e1;
+            transform: scale(1.05);
+        }
+
+        #status {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 1.5rem;
+        }
+
+        #reset-button {
+            background-color: #1e40af;
+            color: #fff;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        #reset-button:hover {
+            background-color: #173289;
+        }
+
+        /* Estilos para o popup */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transform: scale(0.8);
+            animation: fadeInScale 0.3s forwards;
+        }
+
+        .modal-content h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes fadeInScale {
+            to {
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+<div class="container rounded-xl shadow-lg p-8 m-4">
+    <h1 class="text-3xl font-bold mb-4">Jogo da Velha</h1>
+
+    <div id="game-board">
+        <div class="cell" data-index="0"></div>
+        <div class="cell" data-index="1"></div>
+        <div class="cell" data-index="2"></div>
+        <div class="cell" data-index="3"></div>
+        <div class="cell" data-index="4"></div>
+        <div class="cell" data-index="5"></div>
+        <div class="cell" data-index="6"></div>
+        <div class="cell" data-index="7"></div>
+        <div class="cell" data-index="8"></div>
+    </div>
+
+    <p id="status" class="text-xl font-semibold mt-4">Vez do Jogador X</p>
+    <button id="reset-button" class="mt-4 px-6 py-2 rounded-full bg-blue-600 text-white font-semibold shadow-md">Reiniciar Jogo</button>
+</div>
+
+<!-- Modal para mensagens -->
+<div id="message-modal" class="modal">
+    <div class="modal-content">
+        <h2 id="modal-text"></h2>
+        <button id="modal-close" class="mt-4 px-6 py-2 rounded-full bg-blue-600 text-white font-semibold">Fechar</button>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Seleciona os elementos do DOM
+        const board = document.getElementById('game-board');
+        const cells = document.querySelectorAll('.cell');
+        const statusText = document.getElementById('status');
+        const resetButton = document.getElementById('reset-button');
+        const messageModal = document.getElementById('message-modal');
+        const modalText = document.getElementById('modal-text');
+        const modalCloseButton = document.getElementById('modal-close');
+
+        // Variáveis de estado do jogo
+        let gameActive = true;
+        let currentPlayer = 'X';
+        let gameState = ['', '', '', '', '', '', '', '', ''];
+
+        // Condições de vitória
+        const winningConditions = [
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8],
+            [0, 3, 6],
+            [1, 4, 7],
+            [2, 5, 8],
+            [0, 4, 8],
+            [2, 4, 6]
+        ];
+
+        // Função para exibir mensagem no modal
+        const showMessage = (message) => {
+            modalText.textContent = message;
+            messageModal.style.display = 'flex';
+        };
+
+        // Função para fechar o modal
+        modalCloseButton.addEventListener('click', () => {
+            messageModal.style.display = 'none';
+        });
+
+        // Função para lidar com o clique em uma célula
+        const handleCellClick = (event) => {
+            const clickedCell = event.target;
+            const clickedCellIndex = parseInt(clickedCell.getAttribute('data-index'));
+
+            // Verifica se a jogada é válida
+            if (gameState[clickedCellIndex] !== '' || !gameActive) {
+                return;
+            }
+
+            // Atualiza o estado do jogo e o DOM
+            gameState[clickedCellIndex] = currentPlayer;
+            clickedCell.textContent = currentPlayer;
+            
+            // Verifica o resultado do jogo
+            handleResultValidation();
+        };
+
+        // Função para verificar o resultado (vitória ou empate)
+        const handleResultValidation = () => {
+            let roundWon = false;
+            for (let i = 0; i < winningConditions.length; i++) {
+                const winCondition = winningConditions[i];
+                let a = gameState[winCondition[0]];
+                let b = gameState[winCondition[1]];
+                let c = gameState[winCondition[2]];
+                
+                if (a === '' || b === '' || c === '') {
+                    continue;
+                }
+                
+                if (a === b && b === c) {
+                    roundWon = true;
+                    break;
+                }
+            }
+
+            if (roundWon) {
+                showMessage(`O Jogador ${currentPlayer} Venceu!`);
+                gameActive = false;
+                return;
+            }
+
+            let roundDraw = !gameState.includes('');
+            if (roundDraw) {
+                showMessage(`Empate!`);
+                gameActive = false;
+                return;
+            }
+
+            // Alterna o jogador
+            handlePlayerChange();
+        };
+
+        // Função para alternar o jogador
+        const handlePlayerChange = () => {
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            statusText.textContent = `Vez do Jogador ${currentPlayer}`;
+        };
+
+        // Função para reiniciar o jogo
+        const handleRestartGame = () => {
+            gameActive = true;
+            currentPlayer = 'X';
+            gameState = ['', '', '', '', '', '', '', '', ''];
+            statusText.textContent = `Vez do Jogador ${currentPlayer}`;
+            cells.forEach(cell => cell.textContent = '');
+            messageModal.style.display = 'none'; // Fecha o modal se estiver aberto
+        };
+
+        // Adiciona os event listeners
+        cells.forEach(cell => cell.addEventListener('click', handleCellClick));
+        resetButton.addEventListener('click', handleRestartGame);
+    });
+</script>
+
+</body>
+</html>
